@@ -9,9 +9,9 @@ ninputs = nfeats * width * height
 classes = {'1', '2'}
 
 local opt = lapp[[
-    -n, --network   (default "aug_network.t7")    reload pretrained network
+    -n, --network   (default "")    reload pretrained network
     -b, --batchSize (default 64)    batch size
-    -r, --learningRate  (default 0.001)  learning rate, for SGD only
+    -r, --learningRate  (default 0.05)  learning rate, for SGD only
     -m, --momentum  (default 0) momentum, for SGD only
 ]]
 if opt.network == '' then
@@ -27,13 +27,23 @@ if opt.network == '' then
     model:add(nn.Tanh()) 
     model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
 
+    model:add(nn.SpatialConvolutionMM(64, 128, 5, 5))
+    model:add(nn.Tanh()) 
+    model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+
+    model:add(nn.SpatialConvolutionMM(128, 256, 5, 5))
+    model:add(nn.Tanh()) 
+    model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+
     -- stage 3 : standard 2-layer MLP:
-    model:add(nn.Reshape(64*14*14))
-    model:add(nn.Linear(64*14*14, 1000))
+    model:add(nn.Reshape(256*2*2)) --1024
+    model:add(nn.Linear(256*2*2, 512))
     model:add(nn.Tanh())
-    model:add(nn.Linear(1000, 200))
+    model:add(nn.Linear(512, 256))
     model:add(nn.Tanh())
-    model:add(nn.Linear(200, #classes))
+    model:add(nn.Linear(256, 128))
+    model:add(nn.Tanh())
+    model:add(nn.Linear(128, #classes))
 else
     print('<trainer> reloading previously trained network')
     model = torch.load(opt.network)
@@ -148,7 +158,10 @@ collectgarbage()
 
 print ('start training...')
 local trainsize = trainlabel:storage():size()
-train(traindata, trainlabel, trainsize)
+for i=1,5 do
+	print('epoch #' .. i)
+	train(traindata, trainlabel, trainsize)
+end
 print ('end training======================================================================================')
 
 local testdata = torch.load('./sample/2testdata.t7')
@@ -158,7 +171,7 @@ local testsize = testlabel:storage():size()
 test(testdata, testlabel, testsize)
 
 print('saving current net...')
-torch.save('aug_network.t7', model)
+torch.save('four_conv_network.t7', model)
 
 
 
