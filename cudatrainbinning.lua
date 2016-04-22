@@ -1,17 +1,15 @@
 require 'torch'
 require 'nn'
 require 'optim'
+require 'cutorch'
+require 'cunn'
 
-nfeats = 1
-width = 100
-height = 100
-ninputs = nfeats * width * height
 classes = {'1', '2'}
 
 local opt = lapp[[
     -n, --network   (default "")    reload pretrained network
     -b, --batchSize (default 128)    batch size
-    -r, --learningRate  (default 0.001)  learning rate, for SGD only
+    -r, --learningRate  (default 0.0001)  learning rate, for SGD only
     -m, --momentum  (default 0) momentum, for SGD only
     -s, --save  (default '/home/lzc/particle/logs')
     -d, --data  (default 'gammas')
@@ -20,28 +18,26 @@ if opt.network == '' then
     -- convnet
     -- stage 1 : mean suppresion -> filter bank -> squashing -> max pooling
     model = nn.Sequential()
-    model:add(nn.SpatialConvolutionMM(1, 6, 5, 5))   --1*6
+    model:add(nn.SpatialAveragePooling(2, 2, 2, 2))  --50*50
+    model:add(nn.SpatialConvolutionMM(1, 6, 5, 5))   --1*6   46*46
     model:add(nn.Tanh())
-    model:add(nn.SpatialMaxPooling(2, 2, 2, 2))  --50*50
+    model:add(nn.SpatialMaxPooling(2, 2, 2, 2))  --50*50     23*23
 
     -- stage 2 : mean suppresion -> filter bank -> squashing -> max pooling
-    model:add(nn.SpatialConvolutionMM(6, 16, 5, 5))   --6*16
+    model:add(nn.SpatialConvolutionMM(6, 16, 5, 5))   --6*16  19*19
     model:add(nn.Tanh()) 
-    model:add(nn.SpatialMaxPooling(3, 3, 3, 3))
+    model:add(nn.SpatialMaxPooling(3, 3, 3, 3))      --6*6
 
     -- stage 3 : standard 2-layer MLP:
     --model:add(nn.Dropout())
-    model:add(nn.Reshape(16*14*14)) --1024
-    model:add(nn.Linear(16*14*14, 200))
+    model:add(nn.Reshape(16*6*6)) --1024   16*6*6=576
+    model:add(nn.Linear(16*6*6, 128))
     model:add(nn.Tanh())
-    model:add(nn.Linear(200, #classes))
+    model:add(nn.Linear(128, #classes))
 else
     print('<trainer> reloading previously trained network')
     model = torch.load(opt.network)
 end
-
--- retrieve parameters and gradients
-parameters,gradParameters = model:getParameters()
 
 -- verbose
 print(model)
@@ -49,14 +45,19 @@ print(model)
 -- loss function: negative log-likelihood
 --
 model:add(nn.LogSoftMax())
-criterion = nn.ClassNLLCriterion()
+model:cuda()
+criterion = nn.ClassNLLCriterion():cuda()
+
+-- retrieve parameters and gradients
+-- PARAMETERS MUST BE PUT ON CUDA!!!!!!!!!!!!!!!!!!! THIS OPERATION MUST BE PLACE AFTER MODEL:CUDA()
+parameters,gradParameters = model:getParameters()
 
 -- this matrix records the current confusion across classes
 confusion = optim.ConfusionMatrix(classes)
 
 -- log results to files
-trainLogger = optim.Logger(paths.concat(opt.save, 'train9.log'))
-testLogger = optim.Logger(paths.concat(opt.save, 'test9.log'))
+trainLogger = optim.Logger(paths.concat(opt.save, 'traincudabinning.log'))
+testLogger = optim.Logger(paths.concat(opt.save, 'testcudabinning.log'))
 
 function train(dataset, label, size)
     epoch = epoch or 1
@@ -65,14 +66,14 @@ function train(dataset, label, size)
     times = 1
     for t = 1, size, opt.batchSize do
         if t+opt.batchSize > size then
-            return
+            break
         end
-        print ('times = ' .. times)
-        print ('t = ' .. t .. ', size = '..size..', minibatch = '..opt.batchSize)
+        --print ('times = ' .. times)
+        --print ('t = ' .. t .. ', size = '..size..', minibatch = '..opt.batchSize)
         times = times + 1 
         -- create mini batch
-        local inputs = torch.Tensor(opt.batchSize, 1, 100, 100)
-        local targets = torch.Tensor(opt.batchSize)
+        local inputs = torch.CudaTensor(opt.batchSize, 1, 100, 100)
+        local targets = torch.CudaTensor(opt.batchSize)
         local k = 1
         for i = t, math.min(t+opt.batchSize-1, size) do
             -- load new sample
@@ -90,17 +91,18 @@ function train(dataset, label, size)
             end
             -- reset gradients
             gradParameters:zero()
-            -- evaluate function for complete mini batch
-            local outputs = model:forward(inputs)
-            --print(outputs)
-            local f = criterion:forward(outputs, targets)
-            -- estimate df/dW
-            local df_do = criterion:backward(outputs, targets)
-            model:backward(inputs, df_do) 
-            -- update confusion
-            for i = 1,math.min(t+opt.batchSize-1,size)-t do
-                confusion:add(outputs[i], targets[i])
+            local f = 0
+            for i = 1, opt.batchSize do
+		local outputs = model:forward(inputs[i])
+		local err = criterion:forward(outputs, targets[i])
+                f = f + err
+		local df_do = criterion:backward(outputs, targets[i])
+		model:backward(inputs[i], df_do:cuda()) 
+		-- update confusion
+	        confusion:add(outputs, targets[i])
             end
+            gradParameters:div(opt.batchSize)
+            f = f / opt.batchSize
             return f, gradParameters
         end
         -- optimize on current mini-batch
@@ -109,22 +111,20 @@ function train(dataset, label, size)
             momentum = opt.momentum,
             learningRateDecay = 5e-7
         }
-        --optim.sgd(feval, parameters, sgdState)
-        optim.adam(feval, parameters)
-        
-        xlua.progress(t, size)
-        
-        print (confusion)
-        trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
-        confusion:zero()
-
+        optim.sgd(feval, parameters, sgdState)
+        --optim.adam(feval, parameters)
+        --xlua.progress(t, size)
     end
+    print (confusion)
+    trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
+    print (confusion.totalValid * 100)
+    confusion:zero()
     epoch = epoch + 1
 end
 
 function test(testdata, testlabel, size)
-    local inputs = torch.Tensor(size, 1, 100, 100)
-    local targets = torch.Tensor(size)
+    local inputs = torch.CudaTensor(size, 1, 100, 100)
+    local targets = torch.CudaTensor(size)
     for i=1,size do
         inputs[i] = testdata[i]
         targets[i] = testlabel[i]
@@ -133,7 +133,7 @@ function test(testdata, testlabel, size)
     local f = criterion:forward(outputs, targets)
     for i = 1, size do
         confusion:add(outputs[i], targets[i])
-        print(outputs[i])
+        --print(outputs[i])
     end
     print(confusion)
     testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
@@ -154,25 +154,23 @@ if opt.network=='' then
     traindata = traindata:view(trainsize*10000):cat(augmentdata:view(augsize*10000)):view(trainsize+augsize, 100, 100)
     print (augmentlabel:size())
     trainlabel = trainlabel:cat(augmentlabel)]]
-    print ('start training...')
-    for i=1,100 do
-        train(traindata, trainlabel, trainsize)
-    end
-    local trainsize = trainlabel:storage():size()
-    print ('end training======================================================================================')
-end
-
 local testdata = torch.load('./sample/2testdata.t7')
 local testlabel = torch.load('./sample/2testlabel.t7')
 print (testdata:size())
 print (testlabel:size())
 print ('start testing..')
 local testsize = testlabel:storage():size()
-test(testdata, testlabel, 200)
+    print ('start training...')
+    for i=1,100 do
+        train(traindata, trainlabel, trainsize)
+	test(testdata, testlabel, testsize)
+    end
+    local trainsize = trainlabel:storage():size()
+    print ('end training======================================================================================')
+end
 
---[[
+
 print('saving current net...')
-torch.save('network_v3.t7', model)
-]]
+torch.save('network_cudabinning.t7', model)
 
 
