@@ -1,3 +1,6 @@
 ice/*.t7
+ice/ice*
 *.t7
 sample/*.t7
+all_split_image/
+*.txt
