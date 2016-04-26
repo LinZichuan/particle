@@ -1,18 +1,18 @@
 require 'torch'
 require 'nn'
 require 'optim'
---require 'cutorch'
---require 'cunn'
+require 'cutorch'
+require 'cunn'
 
-classes = {'1', '2'}
+classes = {'1', '2', '3'}
 local opt = lapp[[
-    -n, --network   (default "network_v1.t7")    reload pretrained network
+    -n, --network   (default "network_cuda_ice.t7")    reload pretrained network
     -s, --step      (default '100')                    step of scanning the image
 ]]
 print('<trainer> reloading previously trained network')
 model = torch.load(opt.network)
 print(model)
-criterion = nn.ClassNLLCriterion()
+criterion = nn.ClassNLLCriterion():cuda()
 confusion = optim.ConfusionMatrix(classes)
 
 function scan(patchdata, size)
@@ -26,14 +26,14 @@ function scan(patchdata, size)
             last = size
         end 
         local bs = last - i + 1
-        local inputs = torch.Tensor(bs, 1, 100, 100)
+        local inputs = torch.CudaTensor(bs, 1, 100, 100)
         for j=1,bs do
             inputs[{j,1}] = patchdata[i+j-1]
         end 
         local outputs = model:forward(inputs)
         for j=1,bs do
-            print (outputs[j][1] .. ', ' .. outputs[j][2])
-            if outputs[j][1] > outputs[j][2] then
+            print (outputs[j][1] .. ', ' .. outputs[j][2] .. ', ' .. outputs[j][3])
+            if outputs[j][1] > math.max(outputs[j][2], outputs[j][3]) then
                 print (i+j-1)
                 total = total + 1
                 res[#res+1] = i+j-1
