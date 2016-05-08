@@ -41,7 +41,7 @@ for i = 1, testsize do
 end
 
 
-torch.save('../sample/2traindata_ice.t7', shuffletraindata)
-torch.save('../sample/2testdata_ice.t7', shuffletestdata)
-torch.save('../sample/2trainlabel_ice.t7', shuffletrainlabel)
-torch.save('../sample/2testlabel_ice.t7', shuffletestlabel)
+torch.save('../sample/gammas_2traindata_ice.t7', shuffletraindata)
+torch.save('../sample/gammas_2testdata_ice.t7', shuffletestdata)
+torch.save('../sample/gammas_2trainlabel_ice.t7', shuffletrainlabel)
+torch.save('../sample/gammas_2testlabel_ice.t7', shuffletestlabel)

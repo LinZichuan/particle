@@ -1,6 +1,6 @@
 require 'torch'
 
-local cmd = 'ls /home/lzc/newbin | grep "\\.bin"'
+local cmd = 'ls ./gammasbin | grep "\\.bin"'
 local handle = io.popen(cmd)
 local res = handle:read("*a")
 handle:close()
@@ -22,7 +22,7 @@ end
 for i=1,num do
     local binfile = ar[i]
     print(binfile)
-    local base = '/home/lzc/newbin/'
+    local base = './gammasbin/'
     local inp = assert(io.open(base..binfile, 'rb'))
 
     if (string.find(ar[i], 'star')) then
@@ -149,14 +149,9 @@ end
 assert(inptr:close())
 assert(inpte:close())
 
---print('saving into ./sample/gray_traindata.t7......')
---torch.save('./sample/gray_traindata.t7', train_data)
---print('saving into ./sample/gray_trainlabel.t7......')
---torch.save('./sample/gray_trainlabel.t7', train_label)
---
---print('saving into ./sample/gray_testdata.t7......')
---torch.save('./sample/gray_testdata.t7', test_data)
---print('saving into ./sample/gray_testlabel.t7......')
---torch.save('./sample/gray_testlabel.t7', test_label)
+torch.save('./sample/gammas_traindata.t7', train_data)
+torch.save('./sample/gammas_trainlabel.t7', train_label)
+torch.save('./sample/gammas_testdata.t7', test_data)
+torch.save('./sample/gammas_testlabel.t7', test_label)
 
 

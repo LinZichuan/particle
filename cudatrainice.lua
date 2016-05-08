@@ -18,19 +18,19 @@ if opt.network == '' then
     -- convnet
     -- stage 1 : mean suppresion -> filter bank -> squashing -> max pooling
     model = nn.Sequential()
-    model:add(nn.SpatialConvolutionMM(1, 7, 5, 5))   --1*6
+    model:add(nn.SpatialConvolutionMM(1, 6, 5, 5))   --1*6
     model:add(nn.Tanh())
     model:add(nn.SpatialMaxPooling(2, 2, 2, 2))  --50*50
 
     -- stage 2 : mean suppresion -> filter bank -> squashing -> max pooling
-    model:add(nn.SpatialConvolutionMM(7, 21, 5, 5))   --6*16
+    model:add(nn.SpatialConvolutionMM(6, 16, 5, 5))   --6*16
     model:add(nn.Tanh()) 
     model:add(nn.SpatialMaxPooling(3, 3, 3, 3))
 
     -- stage 3 : standard 2-layer MLP:
     --model:add(nn.Dropout())
-    model:add(nn.Reshape(21*14*14)) --1024
-    model:add(nn.Linear(21*14*14, 200))
+    model:add(nn.Reshape(16*14*14)) --1024
+    model:add(nn.Linear(16*14*14, 200))
     model:add(nn.Tanh())
     model:add(nn.Linear(200, #classes))
     model:add(nn.LogSoftMax())
@@ -55,8 +55,8 @@ parameters,gradParameters = model:getParameters()
 confusion = optim.ConfusionMatrix(classes)
 
 -- log results to files
-trainLogger = optim.Logger(paths.concat(opt.save, 'traincudaiceadder.log'))
-testLogger = optim.Logger(paths.concat(opt.save, 'testcudaiceadder.log'))
+trainLogger = optim.Logger(paths.concat(opt.save, 'traincudaice_2.log'))
+testLogger = optim.Logger(paths.concat(opt.save, 'testcudaice_2.log'))
 
 function train(dataset, label, size)
     epoch = epoch or 1
@@ -115,8 +115,10 @@ function train(dataset, label, size)
         --xlua.progress(t, size)
     end
     print (confusion)
-    trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
-    print (confusion.totalValid * 100)
+    --trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
+    local acc = confusion.totalValid * 100
+    print (acc)
+    os.execute('echo '..acc..' >> logs/train20150507.log' )
     confusion:zero()
     epoch = epoch + 1
 end
@@ -135,14 +137,16 @@ function test(testdata, testlabel, size)
         --print(outputs[i])
     end
     print(confusion)
-    testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
+    --testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
+    local acc = confusion.totalValid*100
+    os.execute('echo '..acc..' >> logs/test20150507.log' )
     confusion:zero()
 end
 
 --if opt.network=='' then 
     print('loading traindata and trainlabel...')
-    local traindata = torch.load('./sample/2traindata_ice.t7')
-    local trainlabel = torch.load('./sample/2trainlabel_ice.t7')
+    local traindata = torch.load('./sample/gammas_2traindata_ice.t7')
+    local trainlabel = torch.load('./sample/gammas_2trainlabel_ice.t7')
     local trainsize = trainlabel:storage():size()
     print (traindata:size())
     print (trainlabel:size())
@@ -153,8 +157,8 @@ end
     traindata = traindata:view(trainsize*10000):cat(augmentdata:view(augsize*10000)):view(trainsize+augsize, 100, 100)
     print (augmentlabel:size())
     trainlabel = trainlabel:cat(augmentlabel)]]
-local testdata = torch.load('./sample/2testdata_ice.t7')
-local testlabel = torch.load('./sample/2testlabel_ice.t7')
+local testdata = torch.load('./sample/gammas_2testdata_ice.t7')
+local testlabel = torch.load('./sample/gammas_2testlabel_ice.t7')
 print (testdata:size())
 print (testlabel:size())
 print ('start testing..')
@@ -162,12 +166,13 @@ local testsize = testlabel:storage():size()
     print ('start training...')
     for i=1,100 do
         train(traindata, trainlabel, trainsize)
-	test(testdata, testlabel, testsize)
+	    test(testdata, testlabel, testsize)
     end
     local trainsize = trainlabel:storage():size()
     print ('end training======================================================================================')
     print('saving current net...')
-    torch.save('network_cuda_ice_wider_adder.t7', model)
+    --torch.save('network_cuda_ice_wider_300.t7', model)
+    torch.save('network_cuda_ice_20160507.t7', model)
 --end
 
 local testda = torch.load('ice/ice.t7')

@@ -1,17 +1,5 @@
 require 'torch'
 
---local cmd = 'ls ~/Desktop/qtcreator_5.0.2/build-test1-Desktop_Qt_5_0_2_GCC_64bit-Debug/ | grep "^star_\\|^noise_"'
-local cmd = 'ls /home/lzc/particle/test1/ | grep "bin"'
-local handle = io.popen(cmd)
-local res = handle:read("*a")
-handle:close()
-local ar = {}
-for i in string.gmatch(res, "%S+") do
-    ar[#ar+1] = i
-end
-print (ar)
-local num = #ar
-
 --x86 is Little endian
 function bytes_to_int(b1, b2, b3, b4)
       if not b4 then error("need four bytes to convert to int",2) end
@@ -22,7 +10,7 @@ end
 
 number = arg[1]
 for i=1,1 do
-    local binfile = 'split_image_stack_'..number..'_cor.mrc.bin' --'split_image.bin'--ar[i]
+    local binfile = 'split_image_stack_'..number..'_cor.mrc.bin' --'split_image.bin'------ar[i]
     local base = '/home/lzc/particle/all_split_image/'--'/home/lzc/particle/test1/'
     local inp = assert(io.open(base..binfile, 'rb'))
 

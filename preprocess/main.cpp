@@ -280,7 +280,7 @@ int main (int argc, char *argv[]) {
     cout << "files_num = " << files_num << endl;
     fin1.close();
     fin2.close();
-    int end = files_num;
+    int end = 10;
     //int fi = 0;
     for (int fi = 0; fi < end; ++fi) {
         cout << "starting " << fi << endl;
@@ -308,15 +308,15 @@ int main (int argc, char *argv[]) {
         //Gaussian Distribution
         struct param p = Gaussian_Distribution(whole, dis_size*row*col);
         delete[] whole;
-        float min_ = p.mean - 5*p.standard;
-        float max_ = p.mean + 5*p.standard;
+        float min_ = p.mean - 3*p.standard;
+        float max_ = p.mean + 3*p.standard;
         cout << "min = " << min_ << ", max = " << max_ << endl;
 
         int *bmp = new int[size];
         grayto256(gray, bmp, max_, min_, size);
         int bin_row = row / 4, bin_col = col / 4;
         int *bin = new int[bin_row * bin_col];
-        binning(bin_row, bin_col, bin, row, col, bmp);
+        //binning(bin_row, bin_col, bin, row, col, bmp);
 
         int side = 100;//100 / 4;
         cout << "row = " << row << ", col = " << col << endl;
@@ -329,8 +329,8 @@ int main (int argc, char *argv[]) {
         cout << "next loop..." << endl;
 
         side = 100;
-        store(star_array, side, noise_array, bmp, fi, col);
-/*
+        //store(star_array, side, noise_array, bmp, fi, col);
+
         int step = 50;
         //int rs = (bin_row-side)/step+1;
         //int cs = (bin_col-side)/step+1;
@@ -342,7 +342,7 @@ int main (int argc, char *argv[]) {
         int *split_bmp = new int[rs*cs*side*side];
         split(bmp, split_bmp, side, rs, cs, row, col, step, origfiles[fi]);
         //split(bin, split_bin, side, rs, cs, bin_row, bin_col, step);
-*/      
+
         delete gray;
         delete bmp;
         delete bin;
