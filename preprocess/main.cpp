@@ -13,7 +13,9 @@
 #include <chrono>
 #include <assert.h>
 #include <algorithm>
+#include <opencv2/opencv.hpp>
 using namespace std;
+using namespace cv;
 
 void grayto256(float* gray, int *bmp, float max_, float min_, int size) {
     float delta = max_ - min_;
@@ -262,10 +264,23 @@ void split(int* input, int* output, int side, int rs, int cs, int row, int col, 
     cout << "split to " << rs << "*" << cs << " patches" << endl;
 }
 
+void paint(int* bmp, int row, int col) {
+	Mat image(row, col, CV_8UC3, Scalar(1,2,3));
+	for (int i = 0; i < row; ++i) {
+		for (int j = 0; j < col; ++j) {
+			int index = i*col+j;
+			//image.at<uchar>(i,j,1) = 100;
+			image.at<cv::Vec3b>(i,j)[0] = bmp[index];
+			image.at<cv::Vec3b>(i,j)[1] = bmp[index];
+			image.at<cv::Vec3b>(i,j)[2] = bmp[index];
+		}
+	}
+	imwrite("./test.jpg", image);
+}
 int main (int argc, char *argv[]) {
-    string base = "/home/lzc/cryoEM-data/gammas-lowpass/";
-    string manual_files = "/home/lzc/particle/manual_files.txt";
-    string images_files = "/home/lzc/particle/images_with_star.txt";
+    string base = "/home/lzc/cryoEM-data/spliceosome-lowpass/";
+    string manual_files = "/home/lzc/particle/spliceosome_manual_files.txt";
+    string images_files = "/home/lzc/particle/spliceosome_images_with_star.txt";
     string* origfiles = new string[500];
     string* starfiles = new string[500];
     int files_num = 0;
@@ -280,7 +295,7 @@ int main (int argc, char *argv[]) {
     cout << "files_num = " << files_num << endl;
     fin1.close();
     fin2.close();
-    int end = 10;
+    int end = 1;
     //int fi = 0;
     for (int fi = 0; fi < end; ++fi) {
         cout << "starting " << fi << endl;
@@ -329,8 +344,9 @@ int main (int argc, char *argv[]) {
         cout << "next loop..." << endl;
 
         side = 100;
+		paint(bmp, row, col);
         //store(star_array, side, noise_array, bmp, fi, col);
-
+/*
         int step = 50;
         //int rs = (bin_row-side)/step+1;
         //int cs = (bin_col-side)/step+1;
@@ -342,7 +358,7 @@ int main (int argc, char *argv[]) {
         int *split_bmp = new int[rs*cs*side*side];
         split(bmp, split_bmp, side, rs, cs, row, col, step, origfiles[fi]);
         //split(bin, split_bin, side, rs, cs, bin_row, bin_col, step);
-
+*/
         delete gray;
         delete bmp;
         delete bin;
