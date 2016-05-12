@@ -264,7 +264,7 @@ void split(int* input, int* output, int side, int rs, int cs, int row, int col, 
     cout << "split to " << rs << "*" << cs << " patches" << endl;
 }
 
-void paint(int* bmp, int row, int col) {
+void paint(int* bmp, int row, int col, int side, star_ar star_array) {
 	Mat image(row, col, CV_8UC3, Scalar(1,2,3));
 	for (int i = 0; i < row; ++i) {
 		for (int j = 0; j < col; ++j) {
@@ -275,12 +275,38 @@ void paint(int* bmp, int row, int col) {
 			image.at<cv::Vec3b>(i,j)[2] = bmp[index];
 		}
 	}
+	//paint star point
+	for (int i = 0; i < star_array.length;  ++i) {
+		int x = star_array.p[i].x;
+		int y = star_array.p[i].y;
+		rectangle(image, Point(x-side/2,y-side/2), 
+				Point(x+side/2,y+side/2), Scalar(0,255,0), 4, 8);
+	}
+	//paint scan res
+	FILE *fp;
+	string filename = "../all_split_image/scanres_stack_0060.bin";
+	if ((fp=fopen(filename.c_str(), "rb")) == NULL) {
+		cout << "read scan file ERROR!" << endl;
+	}
+	fseek(fp, 0, SEEK_END);
+	int filesize = ftell(fp);
+	rewind(fp);
+	int number = filesize / 8;
+	int *scanres = new int[number*2];
+	fread(scanres, sizeof(int), number*2, fp);
+	for (int i = 0; i < number; ++i) {
+		int y = scanres[i*2];
+		int x = scanres[i*2+1];
+		cout << x << " " << y << endl;
+		rectangle(image, Point(x,y), Point(x+side,y+side), Scalar(0,0,255), 4, 8);
+	}
+		
 	imwrite("./test.jpg", image);
 }
 int main (int argc, char *argv[]) {
-    string base = "/home/lzc/cryoEM-data/spliceosome-lowpass/";
-    string manual_files = "/home/lzc/particle/spliceosome_manual_files.txt";
-    string images_files = "/home/lzc/particle/spliceosome_images_with_star.txt";
+    string base = "/home/lzc/cryoEM-data/gammas-lowpass/";
+    string manual_files = "/home/lzc/particle/manual_files.txt";
+    string images_files = "/home/lzc/particle/images_with_star.txt";
     string* origfiles = new string[500];
     string* starfiles = new string[500];
     int files_num = 0;
@@ -323,8 +349,8 @@ int main (int argc, char *argv[]) {
         //Gaussian Distribution
         struct param p = Gaussian_Distribution(whole, dis_size*row*col);
         delete[] whole;
-        float min_ = p.mean - 3*p.standard;
-        float max_ = p.mean + 3*p.standard;
+        float min_ = p.mean - 5*p.standard; //NOTE:3 for split, 5 for view
+        float max_ = p.mean + 5*p.standard;
         cout << "min = " << min_ << ", max = " << max_ << endl;
 
         int *bmp = new int[size];
@@ -344,7 +370,7 @@ int main (int argc, char *argv[]) {
         cout << "next loop..." << endl;
 
         side = 100;
-		paint(bmp, row, col);
+		paint(bmp, row, col, side, star_array);
         //store(star_array, side, noise_array, bmp, fi, col);
 /*
         int step = 50;

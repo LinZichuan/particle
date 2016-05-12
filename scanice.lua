@@ -6,7 +6,7 @@ require 'cunn'
 
 classes = {'1', '2', '3'}
 local opt = lapp[[
-    -n, --network   (default "network_cuda_ice_wider.t7")    reload pretrained network
+    -n, --network   (default "network_cuda_ice.t7")    reload pretrained network
     -s, --step      (default '100')                    step of scanning the image
 ]]
 print('<trainer> reloading previously trained network')
