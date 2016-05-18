@@ -4,3 +4,9 @@ ice/ice*
 sample/*.t7
 all_split_image/
 *.txt
+augmentation/
+gammasbin/
+logs/
+sample/
+show/
+.*
