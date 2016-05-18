@@ -264,6 +264,21 @@ void split(int* input, int* output, int side, int rs, int cs, int row, int col, 
     cout << "split to " << rs << "*" << cs << " patches" << endl;
 }
 
+float IoU(int left1, int top1, int right1, int bottom1, int left2, int top2, int right2, int bottom2) {
+	if (left2>=right1 || top1>=bottom2 || left1>=right2 || bottom1>=top2) return 0.0;
+	int left = max(left1, left2);
+	int right = min(right1, right2);
+	int top = max(top1, top2);
+	int bottom = min(bottom1, bottom2);
+	int area = 20000;
+	cout << right-left << endl;
+	cout << bottom-top << endl;
+	int I = (right-left) * (bottom-top);
+	//cout << I << endl;
+	int U = area - I;
+	float iou = float(I) / float(U);
+	return iou;
+}
 void paint(int* bmp, int row, int col, int side, star_ar star_array) {
 	Mat image(row, col, CV_8UC3, Scalar(1,2,3));
 	for (int i = 0; i < row; ++i) {
@@ -284,7 +299,7 @@ void paint(int* bmp, int row, int col, int side, star_ar star_array) {
 	}
 	//paint scan res
 	FILE *fp;
-	string filename = "../all_split_image/scanres_stack_0060.bin";
+	string filename = "../all_split_image/scanres_stack_split_image_stack_0060_cor.mrc.bin.bin";  //scanres_stack_0060.bin";
 	if ((fp=fopen(filename.c_str(), "rb")) == NULL) {
 		cout << "read scan file ERROR!" << endl;
 	}
@@ -297,16 +312,37 @@ void paint(int* bmp, int row, int col, int side, star_ar star_array) {
 	for (int i = 0; i < number; ++i) {
 		int y = scanres[i*2];
 		int x = scanres[i*2+1];
-		cout << x << " " << y << endl;
-		rectangle(image, Point(x,y), Point(x+side,y+side), Scalar(0,0,255), 4, 8);
+		//cout << x << " " << y << endl;
+		//rectangle(image, Point(x,y), Point(x+side,y+side), Scalar(0,0,255), 4, 8);
 	}
-		
+	//compute accuracy, use IoU
+	int correct_number = 0;
+	for (int i = 0; i < number; ++i) {
+		int y = scanres[i*2], x = scanres[i*2+1];
+		int left2 = x, top2 = y, right2 = x+side, bottom2 = y+side;
+		for (int j = 0; j < star_array.length; ++j) {
+			int xx = star_array.p[j].x-side/2, yy = star_array.p[j].y-side/2;
+			int left1 = xx, top1 = yy, right1 = xx+side, bottom1 = yy+side;
+			float iou = IoU(left1, top1, right1, bottom1, left2, top2, right2, bottom2);
+			//cout << iou << endl;
+			if (iou > 0.3) {
+				correct_number++;
+				rectangle(image, Point(x,y), Point(x+side,y+side), Scalar(0,0,255), 4, 8);
+				break;
+			}
+		}
+	}
+	rectangle(image, Point(1,100), Point(100, 200), Scalar(255,0,0), 4, 8);
+	printf("correct = %d, number = %d, Accuracy = %f\n", correct_number, number, float(correct_number)/float(number));
 	imwrite("./test.jpg", image);
 }
 int main (int argc, char *argv[]) {
     string base = "/home/lzc/cryoEM-data/gammas-lowpass/";
     string manual_files = "/home/lzc/particle/manual_files.txt";
     string images_files = "/home/lzc/particle/images_with_star.txt";
+    //string base = "/home/lzc/microhzhou/";
+    //string manual_files = "/home/lzc/particle/microhzhou_manual_files.txt";
+    //string images_files = "/home/lzc/particle/microhzhou_images_with_star.txt";
     string* origfiles = new string[500];
     string* starfiles = new string[500];
     int files_num = 0;
@@ -349,8 +385,8 @@ int main (int argc, char *argv[]) {
         //Gaussian Distribution
         struct param p = Gaussian_Distribution(whole, dis_size*row*col);
         delete[] whole;
-        float min_ = p.mean - 5*p.standard; //NOTE:3 for split, 5 for view
-        float max_ = p.mean + 5*p.standard;
+        float min_ = p.mean - 3*p.standard; //NOTE:3 for split, 5 for view
+        float max_ = p.mean + 3*p.standard;
         cout << "min = " << min_ << ", max = " << max_ << endl;
 
         int *bmp = new int[size];
