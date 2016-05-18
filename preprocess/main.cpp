@@ -265,7 +265,7 @@ void split(int* input, int* output, int side, int rs, int cs, int row, int col, 
 }
 
 float IoU(int left1, int top1, int right1, int bottom1, int left2, int top2, int right2, int bottom2) {
-	if (left2>=right1 || top1>=bottom2 || left1>=right2 || bottom1>=top2) return 0.0;
+	if (left2>=right1 || top1>=bottom2 || left1>=right2 || top2>=bottom1) return 0.0;
 	int left = max(left1, left2);
 	int right = min(right1, right2);
 	int top = max(top1, top2);
@@ -317,15 +317,19 @@ void paint(int* bmp, int row, int col, int side, star_ar star_array) {
 	}
 	//compute accuracy, use IoU
 	int correct_number = 0;
+	bool *found = new bool[star_array.length];
+	for (int i = 0; i < star_array.length; ++i) found[i] = false;
 	for (int i = 0; i < number; ++i) {
 		int y = scanres[i*2], x = scanres[i*2+1];
 		int left2 = x, top2 = y, right2 = x+side, bottom2 = y+side;
 		for (int j = 0; j < star_array.length; ++j) {
+			if (found[j]) continue;
 			int xx = star_array.p[j].x-side/2, yy = star_array.p[j].y-side/2;
 			int left1 = xx, top1 = yy, right1 = xx+side, bottom1 = yy+side;
 			float iou = IoU(left1, top1, right1, bottom1, left2, top2, right2, bottom2);
 			//cout << iou << endl;
-			if (iou > 0.3) {
+			if (iou > 0.2) {
+				found[j] = true;
 				correct_number++;
 				rectangle(image, Point(x,y), Point(x+side,y+side), Scalar(0,0,255), 4, 8);
 				break;
@@ -333,7 +337,9 @@ void paint(int* bmp, int row, int col, int side, star_ar star_array) {
 		}
 	}
 	rectangle(image, Point(1,100), Point(100, 200), Scalar(255,0,0), 4, 8);
-	printf("correct = %d, number = %d, Accuracy = %f\n", correct_number, number, float(correct_number)/float(number));
+	float accuracy = float(correct_number) / float(number);
+	float recall = float(correct_number) / float(star_array.length);
+	printf("correct = %d, number = %d, Recall = %f, Accuracy = %f\n", correct_number, number, recall, accuracy);
 	imwrite("./test.jpg", image);
 }
 int main (int argc, char *argv[]) {

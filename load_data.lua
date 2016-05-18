@@ -8,9 +8,10 @@ function bytes_to_int(b1, b2, b3, b4)
       return n
 end
 
-number = arg[1]
+--number = arg[1]
+filename = arg[1]
 for i=1,1 do
-    local binfile = 'split_image_stack_'..number..'_cor.mrc.bin' --'split_image.bin'------ar[i]
+    local binfile = filename--'split_image_stack_'..number..'_cor.mrc.bin' --'split_image.bin'------ar[i]
     local base = '/home/lzc/particle/all_split_image/'--'/home/lzc/particle/test1/'
     local inp = assert(io.open(base..binfile, 'rb'))
 
