@@ -14,6 +14,8 @@
 #include <assert.h>
 #include <algorithm>
 #include <opencv2/opencv.hpp>
+#include <sys/stat.h>
+#include <dirent.h>
 using namespace std;
 using namespace cv;
 
@@ -30,20 +32,6 @@ void grayto256(float* gray, int *bmp, float max_, float min_, int size) {
         }
     }
     cout << "finish grayto256" << endl;
-}
-
-void re_arrange(int* in, int* out, int size, int z) {
-    int l = sqrt(z);
-    for (int i = 0; i < size; ++i) {
-        int x = i / (88*l);
-        int y = i % (88*l);
-        int bx = x / 88;
-        int by = y / 88;
-        int ibx = x % 88;
-        int iby = y % 88;
-        int idx = (bx*l + by)*88*88 + (ibx*88 + iby);
-        out[i] = in[idx];
-    }
 }
 
 struct param{
@@ -94,14 +82,15 @@ struct star_ar readstar(string starfile) {
     star_point *p = new star_point[300];
     ifstream fin(starfile);
     string s;
-    for (int i = 0; i < 12; ++i) {
+    for (int i = 0; i < 6; ++i) {
         fin >> s;
         //cout << s << endl;
     }
     string a, b;
     int ia, ib;
     string s1,s2,s3;
-    while(fin >> a >> b >> s1 >> s2 >> s3) {
+    //while(fin >> a >> b >> s1 >> s2 >> s3) {
+    while(fin >> a >> b) {
         stringstream ss;
         ss << a;
         ss >> ia;
@@ -336,20 +325,53 @@ void paint(int* bmp, int row, int col, int side, star_ar star_array) {
 			}
 		}
 	}
-	rectangle(image, Point(1,100), Point(100, 200), Scalar(255,0,0), 4, 8);
 	float accuracy = float(correct_number) / float(number);
 	float recall = float(correct_number) / float(star_array.length);
 	printf("correct = %d, number = %d, Recall = %f, Accuracy = %f\n", correct_number, number, recall, accuracy);
-	imwrite("./test.jpg", image);
+
+	static int order = 0;
+	char imagename[32];
+	sprintf(imagename, "./testresult/test%d.jpg", order++);
+	imwrite(imagename, image);
+}
+void walkdir(char* dirname, vector<string> &mrclist, vector<string> &manualpicklist) {
+	DIR* dir = opendir(dirname);
+    struct dirent* entry;
+    while((entry = readdir(dir))) {
+        struct stat st;
+        char filename[512];
+        if (string(entry->d_name)=="." || string(entry->d_name)=="..") {
+            continue;
+        }
+        snprintf(filename, sizeof(filename), "%s/%s", dirname, entry->d_name);
+        lstat(filename, &st);
+        if (S_ISREG(st.st_mode)) {
+            //push back
+            size_t index = string(filename).find("_manual");
+			if (index != std::string::npos) {
+				cout << filename << endl;
+				manualpicklist.push_back(filename);
+				mrclist.push_back(string(filename).substr(0, index)+".mrc");
+			}
+        } else if (S_ISDIR(st.st_mode)) {
+            //cout << filename << endl;
+            //walkdir(imagelist, filename);
+        }
+    }
 }
 int main (int argc, char *argv[]) {
-    string base = "/home/lzc/cryoEM-data/gammas-lowpass/";
-    string manual_files = "/home/lzc/particle/manual_files.txt";
-    string images_files = "/home/lzc/particle/images_with_star.txt";
-    //string base = "/home/lzc/microhzhou/";
-    //string manual_files = "/home/lzc/particle/microhzhou_manual_files.txt";
+    //string base = "/home/lzc/cryoEM-data/gammas-lowpass/";
+    //string manual_files = "/home/lzc/particle/manual_files.txt";
+    //string images_files = "/home/lzc/particle/images_with_star.txt";
+    char base[64] = "/home/lzc/lzcgraph";
+	vector<string> mrclist;
+	vector<string> manualpicklist;
+	walkdir(base, mrclist, manualpicklist);
+	int total_star_num = 0;
+    
+	//string manual_files = "/home/lzc/particle/microhzhou_manual_files.txt";
     //string images_files = "/home/lzc/particle/microhzhou_images_with_star.txt";
-    string* origfiles = new string[500];
+    /*string* origfiles = new string[500];
     string* starfiles = new string[500];
     int files_num = 0;
     string ns, ns1;
@@ -362,14 +384,19 @@ int main (int argc, char *argv[]) {
     }
     cout << "files_num = " << files_num << endl;
     fin1.close();
-    fin2.close();
-    int end = 1;
+    fin2.close();*/
+
+    //int end = files_num;
+    int end = mrclist.size();
     //int fi = 0;
     for (int fi = 0; fi < end; ++fi) {
         cout << "starting " << fi << endl;
-        string starfile = base + starfiles[fi];
-        string file = base + origfiles[fi];
-        cout << "==>> " << file << endl;
+        //string starfile = base + starfiles[fi];
+        //string file = base + origfiles[fi];
+        string starfile = manualpicklist[fi];
+        string file = mrclist[fi];
+        cout << "starfile==>> " << starfile << endl;
+        cout << "file==>> " << file << endl;
 
         int dis_size = 1;
         int z = 1; //36
@@ -401,7 +428,7 @@ int main (int argc, char *argv[]) {
         int *bin = new int[bin_row * bin_col];
         //binning(bin_row, bin_col, bin, row, col, bmp);
 
-        int side = 100;//100 / 4;
+        int side = 160;//100 / 4;
         cout << "row = " << row << ", col = " << col << endl;
         cout << "bin_row = " << bin_row << ", bin_col = " << bin_col << endl;
         star_ar star_array = readstar(starfile);
@@ -410,9 +437,9 @@ int main (int argc, char *argv[]) {
         cout << "noise number = " << noise_array.length << endl;
 
         cout << "next loop..." << endl;
-
-        side = 100;
-		paint(bmp, row, col, side, star_array);
+		total_star_num += star_array.length;
+        side = 320;
+		//paint(bmp, row, col, side, star_array);
         //store(star_array, side, noise_array, bmp, fi, col);
 /*
         int step = 50;
@@ -432,6 +459,7 @@ int main (int argc, char *argv[]) {
         delete bin;
     }
 
+	cout << "total star num = " << total_star_num << endl;
     cout << "out loop..." << endl;
     //Binning(mean pooling)
     //TODO

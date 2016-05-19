@@ -86,7 +86,7 @@ sorted_prob, prob_index = torch.sort(prob_tensor, 1, true)
 k = math.ceil(#res * 0.75)
 threshold = sorted_prob[k]
 print('threshold = '..threshold)
-res = {}
+--[[res = {}
 for i = 1, dkrow do
 	for j = 1, dkcol do
 		local maxp = -1000
@@ -105,7 +105,7 @@ for i = 1, dkrow do
 		end
 		if idx ~= -1 then res[#res+1] = idx end
 	end
-end
+end]]
 
 print ('res is ' .. #res)
 trueimage = torch.Tensor(#res, 100, 100)
