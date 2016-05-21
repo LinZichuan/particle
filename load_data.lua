@@ -27,7 +27,7 @@ for i=1,1 do
     local tdata = torch.Tensor(data)
     --local vdata = tdata:view(36,88,88)
     print(tdata:storage():size())
-    local vdata = tdata:view(tdata:storage():size()/10000, 100, 100)
+    local vdata = tdata:view(tdata:storage():size()/6400, 80, 80)
 
     print('saving into ' .. binfile .. '.t7......')
     torch.save('./all_split_image/' .. binfile .. '.t7', vdata)

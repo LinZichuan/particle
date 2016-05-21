@@ -5,14 +5,14 @@ require 'cutorch'
 require 'cunn'
 
 nfeats = 1
-width = 100
-height = 100
+width = 80
+height = 80
 ninputs = nfeats * width * height
 classes = {'1', '2'}
 
 local opt = lapp[[
     -n, --network   (default "")    reload pretrained network
-    -b, --batchSize (default 128)    batch size
+    -b, --batchSize (default 32)    batch size
     -r, --learningRate  (default 0.0001)  learning rate, for SGD only
     -m, --momentum  (default 0) momentum, for SGD only
     -s, --save  (default '/home/lzc/particle/logs')
@@ -20,23 +20,23 @@ local opt = lapp[[
 ]]
 if opt.network == '' then
     -- convnet
-    -- stage 1 : mean suppresion -> filter bank -> squashing -> max pooling
     model = nn.Sequential()
-    model:add(nn.SpatialConvolutionMM(1, 6, 5, 5))   --1*6
-    model:add(nn.Tanh())
-    model:add(nn.SpatialMaxPooling(2, 2, 2, 2))  --50*50
+    --[[model:add(nn.SpatialConvolutionMM(1, 3, 5, 5))   --1*6
+    model:add(nn.ReLU())
+    model:add(nn.SpatialMaxPooling(2, 2, 2, 2))  --38*38 --
 
-    -- stage 2 : mean suppresion -> filter bank -> squashing -> max pooling
-    model:add(nn.SpatialConvolutionMM(6, 16, 5, 5))   --6*16
-    model:add(nn.Tanh()) 
-    model:add(nn.SpatialMaxPooling(3, 3, 3, 3))
+    model:add(nn.SpatialConvolutionMM(3, 9, 5, 5))   --6*16
+    model:add(nn.ReLU()) 
+    model:add(nn.SpatialMaxPooling(3, 3, 3, 3))  --11*11
 
-    -- stage 3 : standard 2-layer MLP:
-    --model:add(nn.Dropout())
-    model:add(nn.Reshape(16*14*14)) --1024
-    model:add(nn.Linear(16*14*14, 200))
-    model:add(nn.Tanh())
-    model:add(nn.Linear(200, #classes))
+    model:add(nn.Reshape(9*11*11)) --1024
+    model:add(nn.Linear(9*11*11, 200))
+    model:add(nn.ReLU())
+    model:add(nn.Linear(200, #classes))]]
+	model:add(nn.Reshape(80*80))
+	model:add(nn.Linear(80*80, 512))
+	model:add(nn.ReLU())
+	model:add(nn.Linear(512, #classes))
 else
     print('<trainer> reloading previously trained network')
     model = torch.load(opt.network)
@@ -68,14 +68,16 @@ function train(dataset, label, size)
     print("<trainer> online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
     times = 1
     for t = 1, size, opt.batchSize do
+		xlua.progress(t, size)
         if t+opt.batchSize > size then
+			xlua.progress(1, 1)
             break
         end
         --print ('times = ' .. times)
         --print ('t = ' .. t .. ', size = '..size..', minibatch = '..opt.batchSize)
         times = times + 1 
         -- create mini batch
-        local inputs = torch.CudaTensor(opt.batchSize, 1, 100, 100)
+        local inputs = torch.CudaTensor(opt.batchSize, 1, width, height)
         local targets = torch.CudaTensor(opt.batchSize)
         local k = 1
         for i = t, math.min(t+opt.batchSize-1, size) do
@@ -96,13 +98,13 @@ function train(dataset, label, size)
             gradParameters:zero()
             local f = 0
             for i = 1, opt.batchSize do
-		local outputs = model:forward(inputs[i])
-		local err = criterion:forward(outputs, targets[i])
-                f = f + err
-		local df_do = criterion:backward(outputs, targets[i])
-		model:backward(inputs[i], df_do:cuda()) 
-		-- update confusion
-	        confusion:add(outputs, targets[i])
+				local outputs = model:forward(inputs[i])
+				local err = criterion:forward(outputs, targets[i])
+        		f = f + err
+				local df_do = criterion:backward(outputs, targets[i])
+				model:backward(inputs[i], df_do:cuda()) 
+				-- update confusion
+	        	confusion:add(outputs:view(2), targets[i])
             end
             gradParameters:div(opt.batchSize)
             f = f / opt.batchSize
@@ -126,7 +128,7 @@ function train(dataset, label, size)
 end
 
 function test(testdata, testlabel, size)
-    local inputs = torch.CudaTensor(size, 1, 100, 100)
+    local inputs = torch.CudaTensor(size, 1, width, height)
     local targets = torch.CudaTensor(size)
     for i=1,size do
         inputs[i] = testdata[i]
@@ -145,8 +147,8 @@ end
 
 if opt.network=='' then 
     print('loading traindata and trainlabel...')
-    local traindata = torch.load('./sample/2traindata.t7')
-    local trainlabel = torch.load('./sample/2trainlabel.t7')
+    local traindata = torch.load('./sample/hzhou_traindata_manual.t7')
+    local trainlabel = torch.load('./sample/hzhou_trainlabel_manual.t7')
     local trainsize = trainlabel:storage():size()
     print (traindata:size())
     print (trainlabel:size())
@@ -157,16 +159,19 @@ if opt.network=='' then
     traindata = traindata:view(trainsize*10000):cat(augmentdata:view(augsize*10000)):view(trainsize+augsize, 100, 100)
     print (augmentlabel:size())
     trainlabel = trainlabel:cat(augmentlabel)]]
-local testdata = torch.load('./sample/2testdata.t7')
-local testlabel = torch.load('./sample/2testlabel.t7')
+local testdata = torch.load('./sample/hzhou_testdata_manual.t7')
+local testlabel = torch.load('./sample/hzhou_testlabel_manual.t7')
 print (testdata:size())
 print (testlabel:size())
 print ('start testing..')
 local testsize = testlabel:storage():size()
     print ('start training...')
-    for i=1,100 do
+    for i=1,30 do
         train(traindata, trainlabel, trainsize)
-	test(testdata, testlabel, testsize)
+		if i > 25 then
+			opt.learningRate = opt.learningRate / 2
+		end
+		test(testdata, testlabel, testsize)
     end
     local trainsize = trainlabel:storage():size()
     print ('end training======================================================================================')
@@ -174,6 +179,6 @@ end
 
 
 print('saving current net...')
-torch.save('network_cuda.t7', model)
+torch.save('./net/hzhou_network_cuda_manual.t7', model)
 
 
