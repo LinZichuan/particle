@@ -7,7 +7,7 @@ require 'cunn'
 --classes = {'1', '2', '3'}
 classes = {'1', '2'}
 local opt = lapp[[
-    -n, --network   (default "network_cuda.t7")    reload pretrained network
+    -n, --network   (default "./net/hzhou_network_cuda_manual.t7")    reload pretrained network
     -s, --step      (default '100')                    step of scanning the image
 ]]
 print('<trainer> reloading previously trained network')
@@ -16,11 +16,12 @@ print(model)
 criterion = nn.ClassNLLCriterion():cuda()
 confusion = optim.ConfusionMatrix(classes)
 
-local side = 100
-local step = 50
+local side = 80
+local imagesize = side * side
+local step = 20
 
-local rr = 3710
-local cc = 3838
+local rr = 1024
+local cc = 1024
 --local rr = 4096
 --local cc = 4096
 --local patchrow = 73
@@ -44,7 +45,7 @@ function scan(patchdata, size)
             last = size
         end 
         local bs = last - i + 1
-        local inputs = torch.CudaTensor(bs, 1, 100, 100)
+        local inputs = torch.CudaTensor(bs, 1, side, side)
         for j=1,bs do
             inputs[{j,1}] = patchdata[i+j-1]
         end 
@@ -75,7 +76,7 @@ print  (arg[1])
 filename = arg[1] --'0003'
 --local splitimage = torch.load('all_split_image/split_image_stack_'..number..'_cor.mrc.bin.t7') --torch.load('all_split_image/split_image.bin.t7')
 local splitimage = torch.load('all_split_image/'..filename..'.t7') --torch.load('all_split_image/split_image.bin.t7')
-local size = splitimage:storage():size()/10000
+local size = splitimage:storage():size()/imagesize
 print (size)
 local res = scan(splitimage, size)
 --print(res)
@@ -108,8 +109,8 @@ for i = 1, dkrow do
 end]]
 
 print ('res is ' .. #res)
-trueimage = torch.Tensor(#res, 100, 100)
-local inp = assert(io.open('all_split_image/scanres_stack_'..filename..'.bin', 'wb'))
+trueimage = torch.Tensor(#res, side, side)
+local inp = assert(io.open('all_split_image/scanres')) -- _stack_'..filename..'.bin', 'wb'))
 local struct = require('struct')
 
 local row = math.floor((rr-side)/step+1)

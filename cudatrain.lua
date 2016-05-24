@@ -21,22 +21,34 @@ local opt = lapp[[
 if opt.network == '' then
     -- convnet
     model = nn.Sequential()
-    --[[model:add(nn.SpatialConvolutionMM(1, 3, 5, 5))   --1*6
-    model:add(nn.ReLU())
+
+    model:add(nn.SpatialConvolutionMM(1, 16, 5, 5))   --1*6
+    model:add(nn.Tanh())
     model:add(nn.SpatialMaxPooling(2, 2, 2, 2))  --38*38 --
 
-    model:add(nn.SpatialConvolutionMM(3, 9, 5, 5))   --6*16
-    model:add(nn.ReLU()) 
+    model:add(nn.SpatialConvolutionMM(16, 64, 5, 5))   --6*16
+    model:add(nn.Tanh()) 
     model:add(nn.SpatialMaxPooling(3, 3, 3, 3))  --11*11
 
-    model:add(nn.Reshape(9*11*11)) --1024
-    model:add(nn.Linear(9*11*11, 200))
-    model:add(nn.ReLU())
-    model:add(nn.Linear(200, #classes))]]
-	model:add(nn.Reshape(80*80))
-	model:add(nn.Linear(80*80, 512))
-	model:add(nn.ReLU())
-	model:add(nn.Linear(512, #classes))
+    model:add(nn.Reshape(64*11*11)) --1024
+    model:add(nn.Linear(64*11*11, 256))
+    model:add(nn.Tanh())
+    model:add(nn.Linear(256, #classes))  
+
+	--[[model:add(nn.Reshape(80*80))
+	model:add(nn.Dropout())
+	model:add(nn.Linear(80*80, 1024))
+	model:add(nn.Tanh())
+
+	model:add(nn.Dropout())
+	model:add(nn.Linear(1024, 512))
+	model:add(nn.Tanh())
+
+	model:add(nn.Dropout())
+	model:add(nn.Linear(512, 256))
+	model:add(nn.Tanh())
+
+	model:add(nn.Linear(256, #classes)) ]]
 else
     print('<trainer> reloading previously trained network')
     model = torch.load(opt.network)
@@ -145,37 +157,37 @@ function test(testdata, testlabel, size)
     confusion:zero()
 end
 
-if opt.network=='' then 
-    print('loading traindata and trainlabel...')
-    local traindata = torch.load('./sample/hzhou_traindata_manual.t7')
-    local trainlabel = torch.load('./sample/hzhou_trainlabel_manual.t7')
-    local trainsize = trainlabel:storage():size()
-    print (traindata:size())
-    print (trainlabel:size())
-    --[[local augmentdata = torch.load('./sample/no_overlap_testdata.t7')
-    local augmentlabel = torch.load('./sample/no_overlap_testlabel.t7')
-    local augsize = augmentlabel:storage():size()
-    print (augmentdata:size())
-    traindata = traindata:view(trainsize*10000):cat(augmentdata:view(augsize*10000)):view(trainsize+augsize, 100, 100)
-    print (augmentlabel:size())
-    trainlabel = trainlabel:cat(augmentlabel)]]
+
+print('loading traindata and trainlabel...')
+local traindata = torch.load('./sample/hzhou_traindata_manual.t7')
+local trainlabel = torch.load('./sample/hzhou_trainlabel_manual.t7')
+local trainsize = trainlabel:storage():size()
+print (traindata:size())
+print (trainlabel:size())
+--[[local augmentdata = torch.load('./sample/no_overlap_testdata.t7')
+local augmentlabel = torch.load('./sample/no_overlap_testlabel.t7')
+local augsize = augmentlabel:storage():size()
+print (augmentdata:size())
+traindata = traindata:view(trainsize*10000):cat(augmentdata:view(augsize*10000)):view(trainsize+augsize, 100, 100)
+print (augmentlabel:size())
+trainlabel = trainlabel:cat(augmentlabel)]]
 local testdata = torch.load('./sample/hzhou_testdata_manual.t7')
 local testlabel = torch.load('./sample/hzhou_testlabel_manual.t7')
 print (testdata:size())
 print (testlabel:size())
 print ('start testing..')
 local testsize = testlabel:storage():size()
-    print ('start training...')
-    for i=1,30 do
-        train(traindata, trainlabel, trainsize)
-		if i > 25 then
-			opt.learningRate = opt.learningRate / 2
-		end
-		test(testdata, testlabel, testsize)
-    end
-    local trainsize = trainlabel:storage():size()
-    print ('end training======================================================================================')
+print ('start training...')
+for i=1,30 do
+train(traindata, trainlabel, trainsize)
+--[[if i > 25 then
+	opt.learningRate = opt.learningRate / 2
+end]]
+test(testdata, testlabel, testsize)
 end
+local trainsize = trainlabel:storage():size()
+print ('end training======================================================================================')
+
 
 
 print('saving current net...')

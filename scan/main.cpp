@@ -161,8 +161,7 @@ void binning(float *gray, float *graybin, int row, int col, int scale) {
 					tmp += gray[index];
                 }
             }
-            //graybin[i*bin_col+j] = tmp / 16;
-            graybin[i*bin_col+j] = tmp;
+            graybin[i*bin_col+j] = tmp / 16;
         }
     }
 }
@@ -235,6 +234,31 @@ void store(star_ar &star_array, int side, star_ar &noise_array, int *bin, int fi
     delete noise;
 }
 
+void split(int* input, int* output, int side, int rs, int cs, int row, int col, int step, string filename) {
+    int num = 0;
+    for (int i = 0; i < rs; ++i) {
+        for (int j = 0; j < cs; ++j) {
+            int baser = i * step;
+            int basec = j * step;
+            for (int l = 0; l < side; ++l) {
+                for (int k = 0; k < side; ++k) {
+                    int indexr = baser + l;
+                    int indexc = basec + k;
+                    output[num++] = input[indexr*col + indexc];
+                }
+            }
+        }
+    }
+    FILE* fp;
+    string name = "/home/lzc/particle/all_split_image/split_image_" + filename + ".bin";
+    if ((fp = fopen(name.c_str(), "wb")) == NULL) {
+        cout << "open " << name << " ERROR" << endl;
+    }
+    fwrite(output, sizeof(int), num, fp);
+    cout << "split ok!" << endl;
+    cout << "split to " << rs << "*" << cs << " patches" << endl;
+}
+
 float IoU(int left1, int top1, int right1, int bottom1, int left2, int top2, int right2, int bottom2) {
 	if (left2>=right1 || top1>=bottom2 || left1>=right2 || top2>=bottom1) return 0.0;
 	int left = max(left1, left2);
@@ -250,11 +274,12 @@ float IoU(int left1, int top1, int right1, int bottom1, int left2, int top2, int
 	float iou = float(I) / float(U);
 	return iou;
 }
-void paint(int* bmp, int row, int col, int side, star_ar star_array, star_ar noise_array) {
+void paint(int* bmp, int row, int col, int side, star_ar star_array, star_ar noise_array, bool paintresult) {
 	Mat image(row, col, CV_8UC3, Scalar(1,2,3));
 	for (int i = 0; i < row; ++i) {
 		for (int j = 0; j < col; ++j) {
 			int index = i*col+j;
+			//image.at<uchar>(i,j,1) = 100;
 			image.at<cv::Vec3b>(i,j)[0] = bmp[index];
 			image.at<cv::Vec3b>(i,j)[1] = bmp[index];
 			image.at<cv::Vec3b>(i,j)[2] = bmp[index];
@@ -264,7 +289,8 @@ void paint(int* bmp, int row, int col, int side, star_ar star_array, star_ar noi
 	for (int i = 0; i < star_array.length;  ++i) {
 		int x = star_array.p[i].x;
 		int y = star_array.p[i].y;
-		//rectangle(image, Point(x-side/2,y-side/2), Point(x+side/2,y+side/2), Scalar(0,255,0), 4, 8);
+		//rectangle(image, Point(x-side/2,y-side/2), 
+		//		Point(x+side/2,y+side/2), Scalar(0,255,0), 4, 8);
 		circle(image, Point(x, y), side/2, Scalar(0,255,0), 4, 8);
 	}
 	//paint noise point
@@ -273,9 +299,54 @@ void paint(int* bmp, int row, int col, int side, star_ar star_array, star_ar noi
 		int y = noise_array.p[i].y;
 		circle(image, Point(x, y), side/2, Scalar(255,0,0), 4, 8);
 	}
+	if (paintresult) {
+		//paint scan res
+		FILE *fp;
+		string filename = "../all_split_image/scanres"; //"../all_split_image/scanres_stack_split_image_stack_0060_cor.mrc.bin.bin";  //scanres_stack_0060.bin";
+		if ((fp=fopen(filename.c_str(), "rb")) == NULL) {
+			cout << "read scan file ERROR!" << endl;
+		}
+		fseek(fp, 0, SEEK_END);
+		int filesize = ftell(fp);
+		rewind(fp);
+		int number = filesize / 8;
+		int *scanres = new int[number*2];
+		fread(scanres, sizeof(int), number*2, fp);
+		for (int i = 0; i < number; ++i) {
+			int x = scanres[i*2];
+			int y = scanres[i*2+1];
+			//cout << x << " " << y << endl;
+			//rectangle(image, Point(x,y), Point(x+side,y+side), Scalar(0,0,255), 4, 8);
+			circle(image, Point(x,y), side/2, Scalar(0,0,255), 4, 8);
+		}
+		//compute accuracy, use IoU
+		int correct_number = 0;
+		bool *found = new bool[star_array.length];
+		for (int i = 0; i < star_array.length; ++i) found[i] = false;
+		for (int i = 0; i < number; ++i) {
+			int x = scanres[i*2], y = scanres[i*2+1];
+			int left2 = x, top2 = y, right2 = x+side, bottom2 = y+side;
+			for (int j = 0; j < star_array.length; ++j) {
+				if (found[j]) continue;
+				int xx = star_array.p[j].x-side/2, yy = star_array.p[j].y-side/2;
+				int left1 = xx, top1 = yy, right1 = xx+side, bottom1 = yy+side;
+				float iou = IoU(left1, top1, right1, bottom1, left2, top2, right2, bottom2);
+				//cout << iou << endl;
+				if (iou > 0.2) {
+					found[j] = true;
+					correct_number++;
+					//rectangle(image, Point(x,y), Point(x+side,y+side), Scalar(0,0,255), 4, 8);
+					break;
+				}
+			}
+		}
+		float accuracy = float(correct_number) / float(number);
+		float recall = float(correct_number) / float(star_array.length);
+		printf("correct = %d, number = %d, Recall = %f, Accuracy = %f\n", correct_number, number, recall, accuracy);
+	}
 	static int order = 0;
-	char imagename[128];
-	sprintf(imagename, "./trainsample/%d.jpg", order++);
+	char imagename[32];
+	sprintf(imagename, "./testresult/test%d.jpg", order++);
 	imwrite(imagename, image);
 }
 void walkdir(char* dirname, vector<string> &mrclist, vector<string> &manualpicklist) {
@@ -298,20 +369,36 @@ void walkdir(char* dirname, vector<string> &mrclist, vector<string> &manualpickl
 				mrclist.push_back(string(filename).substr(0, index)+".mrc");
 			}
         } else if (S_ISDIR(st.st_mode)) {
+            //cout << filename << endl;
+            //walkdir(imagelist, filename);
         }
     }
 }
 int main (int argc, char *argv[]) {
+	if (argc < 3) {
+		cout << "please run ./a.out index(int) showres(bool)" << endl; 
+		return -1;
+	}
+	int index = atoi(argv[1]);
+	string showres_str = string(argv[2]);
+    //string base = "/home/lzc/cryoEM-data/gammas-lowpass/";
+    //string manual_files = "/home/lzc/particle/manual_files.txt";
+    //string images_files = "/home/lzc/particle/images_with_star.txt";
+    //char base[64] = "/home/lzc/icegraph";
     char base[64] = "/home/lzc/lzcgraph";
 	vector<string> mrclist;
 	vector<string> manualpicklist;
 	walkdir(base, mrclist, manualpicklist);
 	int total_star_num = 0;
+    
     //int end = files_num;
     int end = mrclist.size();
     //int fi = 0;
     for (int fi = 0; fi < end; ++fi) {
+		if (fi != index) continue;
         cout << "starting " << fi << endl;
+        //string starfile = base + starfiles[fi];
+        //string file = base + origfiles[fi];
         string starfile = manualpicklist[fi];
         string file = mrclist[fi];
         cout << "starfile==>> " << starfile << endl;
@@ -334,8 +421,8 @@ int main (int argc, char *argv[]) {
 
         //Gaussian Distribution
         struct param p = Gaussian_Distribution(graybin, row*col);
-        float min_ = p.mean - 2*p.standard; //NOTE:3 for split, 5 for view
-        float max_ = p.mean + 2*p.standard;
+        float min_ = p.mean - 3*p.standard; //NOTE:3 for split, 5 for view
+        float max_ = p.mean + 3*p.standard;
         cout << "min = " << min_ << ", max = " << max_ << endl;
 
         int *bmp = new int[size];
@@ -352,8 +439,26 @@ int main (int argc, char *argv[]) {
 
         cout << "next loop..." << endl;
 		total_star_num += star_array.length;
-		paint(bmp, row, col, side, star_array, noise_array); //paint res -> true, else -> false
-        store(star_array, side, noise_array, bmp, fi, col);
+		bool showres;
+		if (showres_str == "false") showres = false;
+		else showres = true;
+		paint(bmp, row, col, side, star_array, noise_array, showres); //paint res -> true, else -> false
+//        store(star_array, side, noise_array, bmp, fi, col);
+		if (showres == false) {
+        	int step = 20;
+        	//int rs = (bin_row-side)/step+1;
+        	//int cs = (bin_col-side)/step+1;
+        	int rs = (row-side)/step+1;
+        	int cs = (col-side)/step+1;
+        	cout << "split size = " << endl;
+        	cout << rs << endl << cs << endl;
+        	//int *split_bin = new int[rs*cs*side*side];
+        	int *split_bmp = new int[rs*cs*side*side];
+			int pos = mrclist[fi].find_last_of("/");
+			string name = mrclist[fi].substr(pos+1);
+        	split(bmp, split_bmp, side, rs, cs, row, col, step, name);
+        	//split(bin, split_bin, side, rs, cs, bin_row, bin_col, step);
+		}
         delete gray;
         delete bmp;
         //delete bin;
