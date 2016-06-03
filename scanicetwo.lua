@@ -5,9 +5,9 @@ require 'cutorch'
 require 'cunn'
 
 --classes = {'1', '2', '3'}
-classes = {'1', '2', '3'}
+classes = {'1', '2'}
 local opt = lapp[[
-    -n, --network   (default "network_cuda_ice.t7")    reload pretrained network
+    -n, --network   (default "network_cuda.t7")    reload pretrained network
     -s, --step      (default '100')                    step of scanning the image
 ]]
 print('<trainer> reloading previously trained network')
@@ -50,10 +50,8 @@ function scan(patchdata, size)
         end 
         local outputs = model:forward(inputs)
         for j=1,bs do
-            print (outputs[j][1] .. ', ' .. outputs[j][2] .. ', ' .. outputs[j][3])
-            if outputs[j][1] > math.max(outputs[j][2], outputs[j][3]) then
-            --print (outputs[j][1] .. ', ' .. outputs[j][2])
-            --if outputs[j][1] > outputs[j][2] then
+            print (outputs[j][1] .. ', ' .. outputs[j][2])
+            if outputs[j][1] > outputs[j][2] then
                 print (i+j-1)
                 total = total + 1
                 res[#res+1] = i+j-1

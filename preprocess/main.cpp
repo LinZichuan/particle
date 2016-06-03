@@ -32,19 +32,6 @@ void grayto256(float* gray, int *bmp, float max_, float min_, int size) {
     cout << "finish grayto256" << endl;
 }
 
-void re_arrange(int* in, int* out, int size, int z) {
-    int l = sqrt(z);
-    for (int i = 0; i < size; ++i) {
-        int x = i / (88*l);
-        int y = i % (88*l);
-        int bx = x / 88;
-        int by = y / 88;
-        int ibx = x % 88;
-        int iby = y % 88;
-        int idx = (bx*l + by)*88*88 + (ibx*88 + iby);
-        out[i] = in[idx];
-    }
-}
 
 struct param{
     float mean;
@@ -157,17 +144,19 @@ struct star_ar createnoisestar(int row, int col, int side, star_ar &star_points)
     return sa;
 }
 
-void binning(int bin_row, int bin_col, int *bin, int row, int col, int *bmp) {
+void binning(float *gray, float *graybin, int row, int col, int scale) {
+	int bin_row = row / scale;
+	int bin_col = col / scale;
     for (int i = 0; i < bin_row; ++i) {
         for (int j = 0; j < bin_col; ++j) {
-            int tmp = 0;
+            float tmp = 0;
             for (int r = 0; r < 4; ++r) {
                 for (int c = 0; c < 4; ++c) {
                     int index = (i*4+r)*col + (j*4+c);
-                    tmp += bmp[index];
+					tmp += gray[index];
                 }
             }
-            bin[i*bin_col+j] = tmp / 16;
+            graybin[i*bin_col+j] = tmp;
         }
     }
 }
@@ -271,8 +260,8 @@ float IoU(int left1, int top1, int right1, int bottom1, int left2, int top2, int
 	int top = max(top1, top2);
 	int bottom = min(bottom1, bottom2);
 	int area = 20000;
-	cout << right-left << endl;
-	cout << bottom-top << endl;
+	//cout << right-left << endl;
+	//cout << bottom-top << endl;
 	int I = (right-left) * (bottom-top);
 	//cout << I << endl;
 	int U = area - I;
@@ -298,6 +287,7 @@ void paint(int* bmp, int row, int col, int side, star_ar star_array) {
 				Point(x+side/2,y+side/2), Scalar(0,255,0), 4, 8);
 	}
 	//paint scan res
+
 	FILE *fp;
 	string filename = "../all_split_image/scanres_stack_split_image_stack_0060_cor.mrc.bin.bin";  //scanres_stack_0060.bin";
 	if ((fp=fopen(filename.c_str(), "rb")) == NULL) {
@@ -322,6 +312,7 @@ void paint(int* bmp, int row, int col, int side, star_ar star_array) {
 	for (int i = 0; i < number; ++i) {
 		int y = scanres[i*2], x = scanres[i*2+1];
 		int left2 = x, top2 = y, right2 = x+side, bottom2 = y+side;
+		rectangle(image, Point(x,y), Point(x+side,y+side), Scalar(0,0,255), 4, 8);
 		for (int j = 0; j < star_array.length; ++j) {
 			if (found[j]) continue;
 			int xx = star_array.p[j].x-side/2, yy = star_array.p[j].y-side/2;
@@ -329,18 +320,20 @@ void paint(int* bmp, int row, int col, int side, star_ar star_array) {
 			float iou = IoU(left1, top1, right1, bottom1, left2, top2, right2, bottom2);
 			//cout << iou << endl;
 			if (iou > 0.2) {
+				cout << iou << endl;
 				found[j] = true;
 				correct_number++;
-				rectangle(image, Point(x,y), Point(x+side,y+side), Scalar(0,0,255), 4, 8);
 				break;
 			}
 		}
 	}
-	rectangle(image, Point(1,100), Point(100, 200), Scalar(255,0,0), 4, 8);
+	//rectangle(image, Point(1,100), Point(100, 200), Scalar(255,0,0), 4, 8);
 	float accuracy = float(correct_number) / float(number);
 	float recall = float(correct_number) / float(star_array.length);
 	printf("correct = %d, number = %d, Recall = %f, Accuracy = %f\n", correct_number, number, recall, accuracy);
+
 	imwrite("./test.jpg", image);
+
 }
 int main (int argc, char *argv[]) {
     string base = "/home/lzc/cryoEM-data/gammas-lowpass/";
@@ -391,8 +384,8 @@ int main (int argc, char *argv[]) {
         //Gaussian Distribution
         struct param p = Gaussian_Distribution(whole, dis_size*row*col);
         delete[] whole;
-        float min_ = p.mean - 3*p.standard; //NOTE:3 for split, 5 for view
-        float max_ = p.mean + 3*p.standard;
+        float min_ = p.mean - 5*p.standard; //NOTE:3 for split, 5 for view
+        float max_ = p.mean + 5*p.standard;
         cout << "min = " << min_ << ", max = " << max_ << endl;
 
         int *bmp = new int[size];

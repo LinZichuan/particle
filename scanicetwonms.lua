@@ -5,9 +5,9 @@ require 'cutorch'
 require 'cunn'
 
 --classes = {'1', '2', '3'}
-classes = {'1', '2', '3'}
+classes = {'1', '2'}
 local opt = lapp[[
-    -n, --network   (default "network_cuda_ice.t7")    reload pretrained network
+    -n, --network   (default "network_cuda.t7")    reload pretrained network
     -s, --step      (default '100')                    step of scanning the image
 ]]
 print('<trainer> reloading previously trained network')
@@ -50,10 +50,8 @@ function scan(patchdata, size)
         end 
         local outputs = model:forward(inputs)
         for j=1,bs do
-            print (outputs[j][1] .. ', ' .. outputs[j][2] .. ', ' .. outputs[j][3])
-            if outputs[j][1] > math.max(outputs[j][2], outputs[j][3]) then
-            --print (outputs[j][1] .. ', ' .. outputs[j][2])
-            --if outputs[j][1] > outputs[j][2] then
+            print (outputs[j][1] .. ', ' .. outputs[j][2])
+            if outputs[j][1] > outputs[j][2] then
                 print (i+j-1)
                 total = total + 1
                 res[#res+1] = i+j-1
@@ -83,10 +81,21 @@ print ('res is ' .. #res)
 --sort prob
 prob_tensor = torch.Tensor(prob):view(patchrow*patchcol)
 sorted_prob, prob_index = torch.sort(prob_tensor, 1, true)
-k = math.ceil(#res) --* 0.75)
+k = math.ceil(#res * 0.75)
 threshold = sorted_prob[k]
 print('threshold = '..threshold)
 res = {}
+--NMS
+for i = 2, patchrow-1 do
+	for j = 2, patchcol-1 do
+		if  prob[i][j] >= prob[i-1][j] and prob[i][j] >= prob[i+1][j] and 
+			prob[i][j] >= prob[i][j-1] and prob[i][j] >= prob[i][j+1] and pos[i][j] ~= 0 and prob[i][j] >= threshold then
+			res[#res+1] = pos[i][j]
+		end
+	end
+end
+--Domain Knowledge
+--[[
 for i = 1, dkrow do
 	for j = 1, dkcol do
 		local maxp = -1000
@@ -106,7 +115,7 @@ for i = 1, dkrow do
 		if idx ~= -1 then res[#res+1] = idx end
 	end
 end
-
+]]
 print ('res is ' .. #res)
 trueimage = torch.Tensor(#res, 100, 100)
 local inp = assert(io.open('all_split_image/scanres_stack_'..filename..'.bin', 'wb'))
@@ -117,6 +126,7 @@ local col = math.floor((cc-side)/step+1)
 print (row)
 print (col)
 for i=1,#res do
+	print(res[i])
     trueimage[i] = splitimage[res[i]]:float()
     local indexr = math.floor((res[i]-1) / col) * step
     local indexc = math.floor((res[i]-1) % col) * step

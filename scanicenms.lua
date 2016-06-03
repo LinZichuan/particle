@@ -83,10 +83,21 @@ print ('res is ' .. #res)
 --sort prob
 prob_tensor = torch.Tensor(prob):view(patchrow*patchcol)
 sorted_prob, prob_index = torch.sort(prob_tensor, 1, true)
-k = math.ceil(#res) --* 0.75)
+k = math.ceil(#res * 0.75)
 threshold = sorted_prob[k]
 print('threshold = '..threshold)
 res = {}
+--NMS
+for i = 2, patchrow-1 do
+	for j = 2, patchcol-1 do
+		if  prob[i][j] >= prob[i-1][j] and prob[i][j] >= prob[i+1][j] and 
+			prob[i][j] >= prob[i][j-1] and prob[i][j] >= prob[i][j+1] and pos[i][j] ~= 0 and prob[i][j] >= threshold then
+			res[#res+1] = pos[i][j]
+		end
+	end
+end
+--Domain Knowledge
+--[[
 for i = 1, dkrow do
 	for j = 1, dkcol do
 		local maxp = -1000
@@ -106,7 +117,7 @@ for i = 1, dkrow do
 		if idx ~= -1 then res[#res+1] = idx end
 	end
 end
-
+]]
 print ('res is ' .. #res)
 trueimage = torch.Tensor(#res, 100, 100)
 local inp = assert(io.open('all_split_image/scanres_stack_'..filename..'.bin', 'wb'))
@@ -117,6 +128,7 @@ local col = math.floor((cc-side)/step+1)
 print (row)
 print (col)
 for i=1,#res do
+	print(res[i])
     trueimage[i] = splitimage[res[i]]:float()
     local indexr = math.floor((res[i]-1) / col) * step
     local indexc = math.floor((res[i]-1) % col) * step
