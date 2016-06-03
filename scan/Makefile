@@ -1,5 +1,7 @@
 FLAGS=`pkg-config --cflags --libs opencv`
-all: mrc.cpp main.cpp
-	g++ $(FLAGS)  -std=c++11 mrc.cpp main.cpp 
+split: mrc.cpp split.cpp
+	g++ $(FLAGS)  -std=c++11 mrc.cpp split.cpp -o split
+scan: mrc.cpp scan.cpp
+	g++ $(FLAGS)  -std=c++11 mrc.cpp scan.cpp -o scan
 clean: 
-	rm -rf ./*.o ./*.out
+	rm -rf  split scan

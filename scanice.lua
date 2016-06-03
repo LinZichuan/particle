@@ -6,8 +6,9 @@ require 'cunn'
 
 --classes = {'1', '2', '3'}
 classes = {'1', '2'}
+--hzhou_network_cuda_manual_0.9momentum.t7
 local opt = lapp[[
-    -n, --network   (default "./net/hzhou_network_cuda_manual.t7")    reload pretrained network
+    -n, --network   (default "./net/hzhou_network_cuda_manual_100.t7")    reload pretrained network
     -s, --step      (default '100')                    step of scanning the image
 ]]
 print('<trainer> reloading previously trained network')
@@ -87,7 +88,7 @@ sorted_prob, prob_index = torch.sort(prob_tensor, 1, true)
 k = math.ceil(#res * 0.75)
 threshold = sorted_prob[k]
 print('threshold = '..threshold)
---[[res = {}
+res = {}
 for i = 1, dkrow do
 	for j = 1, dkcol do
 		local maxp = -1000
@@ -98,7 +99,7 @@ for i = 1, dkrow do
 			for b = 1, 3 do
 				local r = baser + a
 				local c = basec + b
-				if prob[r][c] > maxp and prob[r][c] >= threshold then
+				if prob[r][c] > maxp then --and prob[r][c] >= threshold then
 					maxp = prob[r][c]
 					idx = pos[r][c] --r*75+c
 				end
@@ -106,22 +107,26 @@ for i = 1, dkrow do
 		end
 		if idx ~= -1 then res[#res+1] = idx end
 	end
-end]]
+end
 
 print ('res is ' .. #res)
 trueimage = torch.Tensor(#res, side, side)
-local inp = assert(io.open('all_split_image/scanres')) -- _stack_'..filename..'.bin', 'wb'))
+local inp = assert(io.open('all_split_image/scanres', 'wb')) -- _stack_'..filename..'.bin', 'wb'))
 local struct = require('struct')
 
 local row = math.floor((rr-side)/step+1)
 local col = math.floor((cc-side)/step+1)
 print (row)
 print (col)
+--res = {}
+--for i=1,144 do
+--	res[#res+1] = i
+--end
 for i=1,#res do
     trueimage[i] = splitimage[res[i]]:float()
     local indexr = math.floor((res[i]-1) / col) * step
     local indexc = math.floor((res[i]-1) % col) * step
-    --print(indexr .. ',' .. indexc)
+    print(indexr .. ',' .. indexc)
     inp:write(struct.pack('i4', indexr))
     inp:write(struct.pack('i4', indexc))
 end
