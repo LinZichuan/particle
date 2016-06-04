@@ -8,7 +8,7 @@ require 'cunn'
 classes = {'1', '2'}
 --hzhou_network_cuda_manual_0.9momentum.t7
 local opt = lapp[[
-    -n, --network   (default "./net/hzhou_network_cuda_manual_100.t7")    reload pretrained network
+    -n, --network   (default "./net/hzhou_network_cuda_manual_100_dropout.t7")    reload pretrained network
     -s, --step      (default '100')                    step of scanning the image
 ]]
 print('<trainer> reloading previously trained network')
@@ -85,11 +85,28 @@ print ('res is ' .. #res)
 --sort prob
 prob_tensor = torch.Tensor(prob):view(patchrow*patchcol)
 sorted_prob, prob_index = torch.sort(prob_tensor, 1, true)
-k = math.ceil(#res * 0.75)
+k = math.ceil(#res) --* 0.75)
 threshold = sorted_prob[k]
 print('threshold = '..threshold)
 res = {}
-for i = 1, dkrow do
+--NMS
+for i = 1, patchrow do
+	for j = 1, patchcol do
+		local maxp = -1000
+		if i > 1 then maxp = math.max(maxp, prob[i-1][j]) end
+		if i < patchrow then maxp = math.max(maxp, prob[i+1][j]) end
+		if j > 1 then maxp = math.max(maxp, prob[i][j-1]) end
+		if j < patchcol then maxp = math.max(maxp, prob[i][j+1]) end
+		--[[if  prob[i][j] >= prob[i-1][j] and prob[i][j] >= prob[i+1][j] and 
+			prob[i][j] >= prob[i][j-1] and prob[i][j] >= prob[i][j+1] and pos[i][j] ~= 0 then
+			res[#res+1] = pos[i][j]
+		end]]
+		if  prob[i][j] >= maxp and pos[i][j] ~= 0 then
+			res[#res+1] = pos[i][j]
+		end
+	end
+end
+--[[for i = 1, dkrow do
 	for j = 1, dkcol do
 		local maxp = -1000
 		local idx = -1
@@ -107,7 +124,8 @@ for i = 1, dkrow do
 		end
 		if idx ~= -1 then res[#res+1] = idx end
 	end
-end
+end]]
+
 
 print ('res is ' .. #res)
 trueimage = torch.Tensor(#res, side, side)
