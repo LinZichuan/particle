@@ -12,9 +12,9 @@ classes = {'1', '2'}
 
 local opt = lapp[[
     -n, --network   (default "")    reload pretrained network
-    -b, --batchSize (default 128)    batch size
-    -r, --learningRate  (default 0.0001)  learning rate, for SGD only
-    -m, --momentum  (default 0) momentum, for SGD only
+    -b, --batchSize (default 32)    batch size
+    -r, --learningRate  (default 0.01)  learning rate, for SGD only
+    -m, --momentum  (default 0.9) momentum, for SGD only
     -s, --save  (default '/home/lzc/particle/logs')
     -d, --data  (default 'gammas')
 ]]
@@ -22,19 +22,21 @@ if opt.network == '' then
     -- convnet
     -- stage 1 : mean suppresion -> filter bank -> squashing -> max pooling
     model = nn.Sequential()
-    model:add(nn.SpatialConvolutionMM(1, 6, 5, 5))   --1*6
+    model:add(nn.SpatialConvolutionMM(1, 4, 5, 5))   --1*6
     model:add(nn.Tanh())
     model:add(nn.SpatialMaxPooling(2, 2, 2, 2))  --50*50
 
     -- stage 2 : mean suppresion -> filter bank -> squashing -> max pooling
-    model:add(nn.SpatialConvolutionMM(6, 16, 5, 5))   --6*16
+    model:add(nn.SpatialConvolutionMM(4, 9, 5, 5))   --6*16
+	model:add(nn.Dropout(0.4))
     model:add(nn.Tanh()) 
     model:add(nn.SpatialMaxPooling(3, 3, 3, 3))
 
     -- stage 3 : standard 2-layer MLP:
     --model:add(nn.Dropout())
-    model:add(nn.Reshape(16*14*14)) --1024
-    model:add(nn.Linear(16*14*14, 200))
+    model:add(nn.Reshape(9*14*14)) --1024
+    model:add(nn.Linear(9*14*14, 200))
+	model:add(nn.Dropout(0.4))
     model:add(nn.Tanh())
     model:add(nn.Linear(200, #classes))
 else
@@ -165,8 +167,11 @@ print ('start testing..')
 local testsize = testlabel:storage():size()
     print ('start training...')
     for i=1,100 do
+		if i % 5 == 0 then
+			opt.learningRate = opt.learningRate / 5
+		end
         train(traindata, trainlabel, trainsize)
-	test(testdata, testlabel, testsize)
+		test(testdata, testlabel, testsize)
     end
     local trainsize = trainlabel:storage():size()
     print ('end training======================================================================================')
@@ -174,6 +179,7 @@ end
 
 
 print('saving current net...')
-torch.save('network_cuda.t7', model)
+torch.save('network_cuda_20160606.t7', model)
+
 
 

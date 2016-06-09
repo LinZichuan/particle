@@ -53,7 +53,7 @@ local res = scan(splitimage, size)
 print(res)
 
 trueimage = torch.Tensor(#res, 100, 100)
-local inp = assert(io.open('all_split_image/scanres_stack_'..number..'.bin', 'wb'))
+local inp = assert(io.open('all_split_image/scanres', 'wb')) --'all_split_image/scanres_stack_'..number..'.bin', 'wb'))
 local struct = require('struct')
 
 local rr = 3710
@@ -74,5 +74,5 @@ assert(inp:close())
 
 local fn = 'all_split_image/trueimage'..number..'.t7'
 torch.save(fn, trueimage)
-os.execute('scp '..fn..' linzichuan@166.111.131.163:~/Study/senior_second/particle/show/trueimage.t7')
-os.execute('scp all_split_image/scanres_stack_'..number..'.bin' .. ' linzichuan@166.111.131.163:~/Desktop/qtcreator_5.0.2/build-test1-Desktop_Qt_5_0_2_GCC_64bit-Debug/scanres')
+--os.execute('scp '..fn..' linzichuan@166.111.131.163:~/Study/senior_second/particle/show/trueimage.t7')
+--os.execute('scp all_split_image/scanres_stack_'..number..'.bin' .. ' linzichuan@166.111.131.163:~/Desktop/qtcreator_5.0.2/build-test1-Desktop_Qt_5_0_2_GCC_64bit-Debug/scanres')
